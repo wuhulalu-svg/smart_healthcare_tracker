@@ -17,11 +17,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.4",
     "onnxruntime-node": "^1.26.0",
-<<<<<<< HEAD
     "pg": "^8.21.0",
-    "ppu-paddle-ocr": "^5.4.4"
-  }
-=======
     "ppu-paddle-ocr": "^5.4.4",
     "sqlite3": "^5.1.7"
   },
@@ -32,5 +28,4 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs"
->>>>>>> e262c68bd83c93ccde7c8b44cd1ec322587a47f5
 }
