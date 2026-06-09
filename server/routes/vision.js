@@ -2,7 +2,8 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-const DEEPSEEK_API_KEY = 'sk-6a0f3063d7b444d9aa59586c7a331b8c';
+// 从环境变量读取 DeepSeek API Key
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
 router.post('/analyze', async (req, res) => {
   try {
