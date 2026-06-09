@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const pool = require('../db');   // 改用 pool
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
 const { sendVerificationCode } = require('../config/email');
 
@@ -17,13 +17,8 @@ router.post('/send-register-code', async (req, res) => {
 
   try {
     // 检查邮箱是否已注册
-    const existing = await new Promise((resolve, reject) => {
-      db.get('SELECT id FROM users WHERE email = ?', [email], (err, row) => {
-        if (err) reject(err);
-        resolve(row);
-      });
-    });
-    if (existing) return res.status(400).json({ error: '该邮箱已注册' });
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: '该邮箱已注册' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     registerCodes.set(email, { code, expires: Date.now() + 5 * 60 * 1000 });
@@ -57,41 +52,33 @@ router.post('/register', async (req, res) => {
     }
 
     // 再次检查用户是否已存在（防止并发注册）
-    const existingUser = await new Promise((resolve, reject) => {
-      db.get('SELECT id FROM users WHERE email = ?', [email], (err, row) => {
-        if (err) reject(err);
-        resolve(row);
-      });
-    });
-    if (existingUser) {
+    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: '该邮箱已注册' });
     }
 
     // 加密密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 创建用户
-    const result = await new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO users (name, email, password, age, gender, height, weight, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, email, hashedPassword, age || null, gender || null, height || null, weight || null, 'user'],
-        function(err) {
-          if (err) reject(err);
-          resolve(this);
-        }
-      );
-    });
+    // 创建用户（注意 RETURNING id）
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password, age, gender, height, weight, role) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       RETURNING id`,
+      [name, email, hashedPassword, age || null, gender || null, height || null, weight || null, 'user']
+    );
+    const newId = result.rows[0].id;
 
     // 注册成功，删除验证码记录
     registerCodes.delete(email);
 
     // 生成JWT
-    const token = jwt.sign({ id: result.lastID, email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: newId, email }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       message: '注册成功',
       token,
-      user: { id: result.lastID, name, email, age, gender, height, weight, role: 'user' }
+      user: { id: newId, name, email, age, gender, height, weight, role: 'user' }
     });
   } catch (error) {
     console.error('注册错误:', error);
@@ -99,19 +86,15 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ========== 用户登录（不变） ==========
+// ========== 用户登录 ==========
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: '邮箱和密码都不能为空' });
   }
   try {
-    const user = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
-        if (err) reject(err);
-        resolve(row);
-      });
-    });
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
     if (!user) return res.status(401).json({ error: '邮箱或密码错误' });
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: '邮箱或密码错误' });
@@ -136,15 +119,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 获取当前用户信息（不变）
+// 获取当前用户信息
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const user = await new Promise((resolve, reject) => {
-      db.get('SELECT id, name, email, age, gender, height, weight, role FROM users WHERE id = ?', [req.user.id], (err, row) => {
-        if (err) reject(err);
-        resolve(row);
-      });
-    });
+    const result = await pool.query(
+      'SELECT id, name, email, age, gender, height, weight, role FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const user = result.rows[0];
     if (!user) return res.status(404).json({ error: '用户不存在' });
     res.json(user);
   } catch (error) {
@@ -153,27 +135,19 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
-// 更新用户信息（不变）
+// 更新用户信息
 router.put('/me', authenticateToken, async (req, res) => {
   const { name, age, gender, height, weight } = req.body;
   try {
-    await new Promise((resolve, reject) => {
-      db.run(
-        'UPDATE users SET name = ?, age = ?, gender = ?, height = ?, weight = ? WHERE id = ?',
-        [name, age, gender, height, weight, req.user.id],
-        function(err) {
-          if (err) reject(err);
-          resolve(this);
-        }
-      );
-    });
-    const user = await new Promise((resolve, reject) => {
-      db.get('SELECT id, name, email, age, gender, height, weight, role FROM users WHERE id = ?', [req.user.id], (err, row) => {
-        if (err) reject(err);
-        resolve(row);
-      });
-    });
-    res.json(user);
+    await pool.query(
+      'UPDATE users SET name = $1, age = $2, gender = $3, height = $4, weight = $5 WHERE id = $6',
+      [name, age, gender, height, weight, req.user.id]
+    );
+    const result = await pool.query(
+      'SELECT id, name, email, age, gender, height, weight, role FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('更新用户错误:', error);
     res.status(500).json({ error: '服务器错误' });
