@@ -16,19 +16,15 @@ const visionRoutes = require('./routes/vision');
 const ocrRoutes = require('./routes/ocr');
 const paddleOcrRoutes = require('./routes/paddleOcr');
 
-// 数据库和定时任务（暂时注释，路由内部自己会连接数据库）
-// const pool = require('./db');   // 如果需要主文件使用数据库再取消注释
-// require('./cronJobs');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ✅ 修改 CORS：允许你的 Vercel 前端域名 + 本地开发域名
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://你的前端项目名.vercel.app'   // 请替换成你的实际 Vercel 前端域名
-];
+// 从环境变量读取允许的域名，如果未设置则使用默认本地开发域名
+// 你需要在 Render 环境变量中添加 CORS_ORIGIN，值为你的 Vercel 前端域名
+const corsOrigin = process.env.CORS_ORIGIN;
+const allowedOrigins = corsOrigin
+  ? [corsOrigin, 'http://localhost:3000', 'http://localhost:5173']
+  : ['http://localhost:3000', 'http://localhost:5173', 'https://smart-healthcare-tracker-3jxn.vercel.app'];
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -37,6 +33,7 @@ app.use(cors({
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
+            console.log(`CORS blocked origin: ${origin}`);
             callback(new Error('CORS 不允许此域名访问'));
         }
     },
@@ -68,6 +65,6 @@ app.get('/api/health', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📊 API available at http://localhost:${PORT}/api`);
-    console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
+    console.log(`🔧 CORS enabled for origins: ${allowedOrigins.join(', ')}`);
     console.log(`👑 Admin routes enabled`);
 });
