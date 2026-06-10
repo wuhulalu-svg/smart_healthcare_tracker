@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://smart-healthcare-tracker.onrender.com/api';
 
 // 存储token
 let authToken: string | null = localStorage.getItem('token');
