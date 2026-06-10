@@ -26,20 +26,8 @@ const allowedOrigins = corsOrigin
   ? [corsOrigin, 'http://localhost:3000', 'http://localhost:5173']
   : ['http://localhost:3000', 'http://localhost:5173', 'https://smart-healthcare-tracker-3jxn.vercel.app'];
 
-app.use(cors({
-    origin: function (origin, callback) {
-        // 允许没有 origin 的请求（如 Postman）
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            console.log(`CORS blocked origin: ${origin}`);
-            callback(new Error('CORS 不允许此域名访问'));
-        }
-    },
-    credentials: true
-}));
-
+// 临时允许所有跨域请求（仅用于测试，问题解决后可改回）
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
