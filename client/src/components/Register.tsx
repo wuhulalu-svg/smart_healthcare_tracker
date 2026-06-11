@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Activity, Mail, Lock, User as UserIcon, Calendar, Ruler, Weight, AlertCircle, CheckCircle } from 'lucide-react';
 import { User } from '../App';
 
+// 后端 API 基础地址（与 api.ts 保持一致）
+const API_BASE_URL = 'https://smart-healthcare-tracker.onrender.com/api';
+
 interface RegisterProps {
   onRegister: (user: User) => Promise<boolean>;
   onBackToLogin: () => void;
@@ -31,7 +34,7 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
     }
     if (countdown > 0) return;
     try {
-      const res = await fetch('http://localhost:3001/api/auth/send-register-code', {
+      const res = await fetch(`${API_BASE_URL}/auth/send-register-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email })
@@ -91,7 +94,7 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...userData, code: formData.code })
